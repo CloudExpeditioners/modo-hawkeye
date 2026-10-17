@@ -1,6 +1,5 @@
-
 variable "location" {
-  description = "Region de Azure para Modo Hawkeye"
+  description = "Region de Azure para el laboratorio Modo Hawkeye"
   type        = string
   default     = "eastus"
 }

@@ -1,4 +1,3 @@
-
 terraform {
   required_version = ">= 1.5.0"
 
@@ -12,6 +11,7 @@ terraform {
 
 provider "azurerm" {
   features {}
+
   resource_provider_registrations = "none"
 }
 
@@ -30,8 +30,9 @@ resource "azurerm_log_analytics_workspace" "hawkeye" {
   name                = "law-modo-hawkeye-demo"
   location            = azurerm_resource_group.hawkeye.location
   resource_group_name = azurerm_resource_group.hawkeye.name
-  sku                 = "PerGB2018"
-  retention_in_days   = 30
+
+  sku               = "PerGB2018"
+  retention_in_days = 30
 
   tags = {
     project     = "modo-hawkeye"

@@ -1,0 +1,308 @@
+name: Hawkeye · Corrección controlada
+run-name: "Hawkeye remediate · ${{ inputs.remediation_id }}"
+
+# Flujo separado del diagnóstico. Garantías:
+#  1. El job corre en el environment `hawkeye-remediation` → exige aprobación humana (required reviewers).
+#  2. La identidad de escritura (gha-modo-hawkeye) SOLO confía en tokens OIDC de ese environment.
+#  3. Se re-planifica y se compara la huella con la del diagnóstico aprobado: si Azure cambió, se bloquea.
+#  4. Política: Hawkeye nunca elimina ni reemplaza recursos.
+#  5. Se aplica EXACTAMENTE el plan guardado y luego se verifica que no quede drift.
+
+on:
+  workflow_dispatch:
+    inputs:
+      remediation_id:
+        description: "ID de la corrección (lo genera el agente)"
+        required: true
+        type: string
+      diagnosis_id:
+        description: "ID del diagnóstico aprobado"
+        required: true
+        type: string
+      requested_by:
+        description: "Quién solicita la corrección"
+        required: false
+        default: "manual"
+        type: string
+      justification:
+        description: "Justificación"
+        required: false
+        default: "Corrección de drift"
+        type: string
+
+concurrency:
+  group: hawkeye-remediation
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  TF_VERSION: "1.9.8"
+  ARM_USE_OIDC: "true"
+  ARM_USE_AZUREAD: "true"
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  REMEDIATION_ID: ${{ inputs.remediation_id }}
+  DIAGNOSIS_ID: ${{ inputs.diagnosis_id }}
+  REQUESTED_BY: ${{ inputs.requested_by }}
+  JUSTIFICATION: ${{ inputs.justification }}
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  remediate:
+    name: Corrección (requiere aprobación)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: hawkeye-remediation
+    permissions:
+      contents: write
+      issues: write
+      id-token: write
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validar entradas
+        id: validate
+        run: |
+          for v in "$REMEDIATION_ID" "$DIAGNOSIS_ID"; do
+            [[ "$v" =~ ^[A-Za-z0-9-]{6,64}$ ]] || { echo "::error::ID inválido: $v"; exit 1; }
+          done
+          mkdir -p out
+          date -u +%Y-%m-%dT%H:%M:%SZ > out/started_at.txt
+
+      - name: Quién aprobó (registro de GitHub)
+        id: approval
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/approvals" > out/approvals.json || echo '[]' > out/approvals.json
+          echo "by=$(jq -r '[.[] | select(.state=="approved")][0].user.login // "desconocido"' out/approvals.json)" >> "$GITHUB_OUTPUT"
+          echo "comment=$(jq -r '[.[] | select(.state=="approved")][0].comment // ""' out/approvals.json | tr '\n' ' ' | head -c 300)" >> "$GITHUB_OUTPUT"
+
+      - name: Cargar diagnóstico aprobado
+        id: diag
+        run: |
+          git fetch --depth=1 origin hawkeye-results
+          git show "FETCH_HEAD:results/diagnosis/${DIAGNOSIS_ID}.json" > out/diagnosis.json
+          echo "fingerprint=$(jq -r .fingerprint out/diagnosis.json)" >> "$GITHUB_OUTPUT"
+          echo "drift=$(jq -r .drift out/diagnosis.json)" >> "$GITHUB_OUTPUT"
+          echo "issue=$(jq -r '.issue_number // ""' out/diagnosis.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Azure login (OIDC · gha-modo-hawkeye · solo en este environment)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform init
+        working-directory: infra
+        run: terraform init -input=false -no-color
+
+      - name: Re-planificar (con lock del estado)
+        id: plan
+        working-directory: infra
+        run: |
+          set -o pipefail
+          terraform plan -input=false -no-color -out=tfplan | tee ../out/plan.txt
+          terraform show -json tfplan > ../out/plan.json
+
+      - name: Verificar huella y política
+        id: gate
+        env:
+          EXPECTED: ${{ steps.diag.outputs.fingerprint }}
+          DIAG_DRIFT: ${{ steps.diag.outputs.drift }}
+        run: |
+          scripts/summarize-plan.sh out/plan.json out
+          ACTUAL=$(cat out/fingerprint.txt)
+          DELETES=$(jq '[.[] | select(.actions | index("delete"))] | length' out/changes.json)
+          COUNT=$(jq 'length' out/changes.json)
+          echo "Huella aprobada: $EXPECTED"
+          echo "Huella actual:   $ACTUAL"
+          if [ "$DIAG_DRIFT" != "true" ]; then
+            echo "decision=nothing_to_do" >> "$GITHUB_OUTPUT"
+            echo "reason=El diagnóstico aprobado no tenía drift." >> "$GITHUB_OUTPUT"
+          elif [ "$COUNT" -eq 0 ]; then
+            echo "decision=nothing_to_do" >> "$GITHUB_OUTPUT"
+            echo "reason=Azure ya coincide con Terraform; no hay nada que aplicar." >> "$GITHUB_OUTPUT"
+          elif [ "$DELETES" -gt 0 ]; then
+            echo "decision=blocked_policy" >> "$GITHUB_OUTPUT"
+            echo "reason=Política: Hawkeye no elimina ni reemplaza recursos ($DELETES operación(es) destructiva(s))." >> "$GITHUB_OUTPUT"
+          elif [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "decision=blocked_state_changed" >> "$GITHUB_OUTPUT"
+            echo "reason=El estado de Azure cambió desde el diagnóstico aprobado. Se requiere un nuevo diagnóstico." >> "$GITHUB_OUTPUT"
+          else
+            echo "decision=apply" >> "$GITHUB_OUTPUT"
+            echo "reason=La huella coincide con el diagnóstico aprobado." >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Terraform apply (exactamente el plan verificado)
+        id: apply
+        if: steps.gate.outputs.decision == 'apply'
+        working-directory: infra
+        run: |
+          set -o pipefail
+          terraform apply -input=false -no-color tfplan | tee ../out/apply.txt
+
+      - name: Verificación posterior (¿quedó drift?)
+        id: verify
+        if: steps.apply.outcome == 'success'
+        working-directory: infra
+        run: |
+          set +e
+          terraform plan -input=false -no-color -lock=false -detailed-exitcode > ../out/verify.txt 2>&1
+          code=$?
+          set -e
+          cat ../out/verify.txt
+          if [ "$code" -eq 0 ]; then echo "verified=true" >> "$GITHUB_OUTPUT"; else echo "verified=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Construir resultado
+        if: always() && steps.validate.outcome == 'success'
+        env:
+          DECISION: ${{ steps.gate.outputs.decision }}
+          GATE_REASON: ${{ steps.gate.outputs.reason }}
+          APPLY_OUTCOME: ${{ steps.apply.outcome }}
+          VERIFIED: ${{ steps.verify.outputs.verified }}
+          APPROVED_BY: ${{ steps.approval.outputs.by }}
+          APPROVAL_COMMENT: ${{ steps.approval.outputs.comment }}
+        run: |
+          RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          [ -f out/changes.md ] || echo "No se calcularon cambios." > out/changes.md
+          case "${DECISION:-}" in
+            apply)
+              if [ "$APPLY_OUTCOME" = "success" ] && [ "$VERIFIED" = "true" ]; then
+                STATUS=remediated; TEXT="Corrección aplicada y verificada: Azure vuelve a coincidir con Terraform."
+              elif [ "$APPLY_OUTCOME" = "success" ]; then
+                STATUS=remediated_unverified; TEXT="Se aplicó el plan, pero la verificación posterior aún muestra diferencias."
+              else
+                STATUS=failed; TEXT="El apply falló. Revisa la ejecución."
+              fi ;;
+            nothing_to_do)         STATUS=nothing_to_do; TEXT="$GATE_REASON" ;;
+            blocked_policy)        STATUS=blocked;       TEXT="BLOQUEADO. $GATE_REASON" ;;
+            blocked_state_changed) STATUS=blocked;       TEXT="BLOQUEADO. $GATE_REASON" ;;
+            *)                     STATUS=failed;        TEXT="La corrección falló antes de decidir. Revisa la ejecución." ;;
+          esac
+          jq -n --arg kind remediation --arg id "$REMEDIATION_ID" --arg diagnosis_id "$DIAGNOSIS_ID" \
+            --arg status "$STATUS" --arg summary "$TEXT" --arg decision "${DECISION:-}" \
+            --arg changes_md "$(cat out/changes.md)" \
+            --arg verified "${VERIFIED:-false}" \
+            --arg approved_by "${APPROVED_BY:-}" --arg approval_comment "${APPROVAL_COMMENT:-}" \
+            --arg requested_by "$REQUESTED_BY" --arg justification "$JUSTIFICATION" \
+            --arg identity "gha-modo-hawkeye (escritura · environment hawkeye-remediation)" \
+            --arg run_id "$GITHUB_RUN_ID" --arg run_url "$RUN_URL" \
+            --arg started_at "$(cat out/started_at.txt)" --arg finished_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{kind:$kind, id:$id, diagnosis_id:$diagnosis_id, status:$status, summary:$summary,
+              decision:$decision, changes_md:$changes_md, verified:($verified=="true"),
+              approved_by:$approved_by, approval_comment:$approval_comment,
+              requested_by:$requested_by, justification:$justification, identity:$identity,
+              run_id:$run_id, run_url:$run_url, started_at:$started_at, finished_at:$finished_at}' > out/result.json
+          cat out/result.json
+
+      - name: Publicar resultado
+        if: always() && steps.validate.outcome == 'success'
+        run: scripts/publish-result.sh out/result.json "results/remediation/${REMEDIATION_ID}.json"
+
+      - name: Actualizar incidente
+        if: always() && steps.validate.outcome == 'success' && steps.diag.outputs.issue != ''
+        env:
+          ISSUE: ${{ steps.diag.outputs.issue }}
+        run: |
+          r=out/result.json
+          {
+            echo "## 🏹 Modo Hawkeye · Corrección \`$REMEDIATION_ID\`"
+            echo
+            echo "**$(jq -r .summary $r)**"
+            echo
+            echo "| Campo | Valor |"
+            echo "|---|---|"
+            echo "| Solicitado por | $(jq -r .requested_by $r) |"
+            echo "| Aprobado por | $(jq -r .approved_by $r) |"
+            echo "| Justificación | $(jq -r .justification $r) |"
+            echo "| Identidad | $(jq -r .identity $r) |"
+            echo "| Verificado | $(jq -r .verified $r) |"
+            echo "| Ejecución | $(jq -r .run_url $r) |"
+          } > out/comment.md
+          gh issue comment "$ISSUE" --body-file out/comment.md || true
+          if [ "$(jq -r .status $r)" = "remediated" ]; then gh issue close "$ISSUE" --reason completed || true; fi
+
+      - name: Job summary
+        if: always() && steps.validate.outcome == 'success'
+        run: |
+          r=out/result.json
+          case "$(jq -r .status $r)" in
+            remediated) BADGE="✅ **CORREGIDO Y VERIFICADO**" ;;
+            blocked)    BADGE="🛑 **BLOQUEADO POR CONTROL**" ;;
+            nothing_to_do) BADGE="🟢 **NADA QUE CORREGIR**" ;;
+            *)          BADGE="⚠️ **REVISAR**" ;;
+          esac
+          {
+            echo "# 🏹 Modo Hawkeye · Corrección controlada"
+            echo
+            echo "$BADGE — $(jq -r .summary $r)"
+            echo
+            echo '```mermaid'
+            echo 'flowchart LR'
+            echo '  A["🤖 Agente pide corrección"] --> B["👤 Aprobación humana<br/>Teams + environment"]'
+            echo '  B --> C["🔑 OIDC escritura<br/>solo en este environment"]'
+            echo '  C --> D{"🧬 ¿Huella igual<br/>al diagnóstico?"}'
+            echo '  D -->|sí| E["🏗️ apply del plan exacto"]'
+            echo '  D -->|no| X["🛑 Bloqueado"]'
+            echo '  E --> F["🔍 Verificación: 0 drift"]'
+            echo '```'
+            echo
+            echo "| Campo | Valor |"
+            echo "|---|---|"
+            echo "| Corrección | \`$(jq -r .id $r)\` |"
+            echo "| Diagnóstico | \`$(jq -r .diagnosis_id $r)\` |"
+            echo "| Aprobado por | $(jq -r .approved_by $r) |"
+            echo "| Identidad | $(jq -r .identity $r) |"
+            echo "| Verificado | $(jq -r .verified $r) |"
+            echo
+            echo "## Cambios aplicados / evaluados"
+            jq -r .changes_md $r
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  record-rejection:
+    name: Registrar rechazo o fallo previo
+    needs: remediate
+    if: always() && needs.remediate.result != 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Registrar
+        run: |
+          [[ "$REMEDIATION_ID" =~ ^[A-Za-z0-9-]{6,64}$ ]] || exit 0
+          if git fetch --depth=1 origin hawkeye-results 2>/dev/null && \
+             git cat-file -e "FETCH_HEAD:results/remediation/${REMEDIATION_ID}.json" 2>/dev/null; then
+            echo "El job principal ya publicó su resultado."; exit 0
+          fi
+          mkdir -p out
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/approvals" > out/approvals.json || echo '[]' > out/approvals.json
+          STATE=$(jq -r '.[0].state // ""' out/approvals.json)
+          WHO=$(jq -r '.[0].user.login // ""' out/approvals.json)
+          COMMENT=$(jq -r '.[0].comment // ""' out/approvals.json)
+          if [ "$STATE" = "rejected" ]; then
+            STATUS=rejected; TEXT="Corrección RECHAZADA por $WHO. No se modificó Azure."
+          else
+            STATUS=failed; TEXT="La corrección no llegó a ejecutarse. Revisa la ejecución."
+          fi
+          RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          jq -n --arg id "$REMEDIATION_ID" --arg diagnosis_id "$DIAGNOSIS_ID" --arg status "$STATUS" \
+                --arg summary "$TEXT" --arg rejected_by "$WHO" --arg comment "$COMMENT" \
+                --arg run_url "$RUN_URL" --arg run_id "$GITHUB_RUN_ID" --arg finished_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                '{kind:"remediation", id:$id, diagnosis_id:$diagnosis_id, status:$status, summary:$summary,
+                  rejected_by:$rejected_by, approval_comment:$comment, verified:false,
+                  changes_md:"", run_id:$run_id, run_url:$run_url, finished_at:$finished_at}' > out/result.json
+          scripts/publish-result.sh out/result.json "results/remediation/${REMEDIATION_ID}.json"

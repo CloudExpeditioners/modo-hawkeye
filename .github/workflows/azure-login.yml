@@ -1,4 +1,3 @@
-
 name: Modo Hawkeye - Azure Login Test
 
 on:
@@ -10,17 +9,16 @@ permissions:
 
 jobs:
   azure-login:
-    name: Verify Azure OIDC
+    name: Verify Azure OIDC (reader)
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Azure login using OIDC
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-id: ${{ secrets.AZURE_READER_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
