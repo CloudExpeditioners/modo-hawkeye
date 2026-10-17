@@ -1,0 +1,123 @@
+{
+  "kind": "diagnosis",
+  "id": "diag-20261017-140224-8e0090a6",
+  "status": "completed",
+  "drift": true,
+  "summary": "Drift detectado: 2 recurso(s) difieren de lo declarado en Terraform.",
+  "change_count": 2,
+  "changes": [
+    {
+      "address": "azurerm_log_analytics_workspace.hawkeye",
+      "type": "azurerm_log_analytics_workspace",
+      "actions": [
+        "update"
+      ],
+      "changes": [
+        {
+          "attribute": "retention_in_days",
+          "azure": 90,
+          "terraform": 30
+        }
+      ]
+    },
+    {
+      "address": "azurerm_resource_group.hawkeye",
+      "type": "azurerm_resource_group",
+      "actions": [
+        "update"
+      ],
+      "changes": [
+        {
+          "attribute": "tags.cambio_manual",
+          "azure": "hotfix-viernes-6pm",
+          "terraform": null
+        }
+      ]
+    }
+  ],
+  "changes_md": "- **azurerm_log_analytics_workspace.hawkeye** → actualizar\n  - `retention_in_days`: en Azure 90 · en Terraform 30\n- **azurerm_resource_group.hawkeye** → actualizar\n  - `tags.cambio_manual`: en Azure \"hotfix-viernes-6pm\" · en Terraform (no existe)",
+  "evidence": [
+    {
+      "time": "2026-10-17T13:52:57.7249439Z",
+      "caller": "jorge.avila@cloudexpeditioners.com.pe",
+      "operation": "MICROSOFT.OPERATIONALINSIGHTS/WORKSPACES/WRITE",
+      "resource": null,
+      "actor": "humano"
+    },
+    {
+      "time": "2026-10-17T13:52:36.0250052Z",
+      "caller": "jorge.avila@cloudexpeditioners.com.pe",
+      "operation": "MICROSOFT.RESOURCES/SUBSCRIPTIONS/RESOURCEGROUPS/WRITE",
+      "resource": null,
+      "actor": "humano"
+    },
+    {
+      "time": "2026-10-17T13:37:28.5348637Z",
+      "caller": "40a8d953-d4dc-48a4-8fdd-fdfbad96dbd6",
+      "operation": "MICROSOFT.OPERATIONALINSIGHTS/WORKSPACES/WRITE",
+      "resource": null,
+      "actor": "automatizacion"
+    },
+    {
+      "time": "2026-10-17T13:37:06.8712927Z",
+      "caller": "40a8d953-d4dc-48a4-8fdd-fdfbad96dbd6",
+      "operation": "MICROSOFT.RESOURCES/SUBSCRIPTIONS/RESOURCEGROUPS/WRITE",
+      "resource": null,
+      "actor": "automatizacion"
+    },
+    {
+      "time": "2026-10-17T13:16:48.2308497Z",
+      "caller": "jorge.avila@cloudexpeditioners.com.pe",
+      "operation": "MICROSOFT.OPERATIONALINSIGHTS/WORKSPACES/WRITE",
+      "resource": null,
+      "actor": "humano"
+    },
+    {
+      "time": "2026-10-17T13:16:26.640458Z",
+      "caller": "jorge.avila@cloudexpeditioners.com.pe",
+      "operation": "MICROSOFT.RESOURCES/SUBSCRIPTIONS/RESOURCEGROUPS/WRITE",
+      "resource": null,
+      "actor": "humano"
+    },
+    {
+      "time": "2026-10-17T13:01:19.263396Z",
+      "caller": "jorge.avila@cloudexpeditioners.com.pe",
+      "operation": "MICROSOFT.OPERATIONALINSIGHTS/WORKSPACES/WRITE",
+      "resource": null,
+      "actor": "humano"
+    },
+    {
+      "time": "2026-10-17T13:00:57.0207359Z",
+      "caller": "jorge.avila@cloudexpeditioners.com.pe",
+      "operation": "MICROSOFT.RESOURCES/SUBSCRIPTIONS/RESOURCEGROUPS/WRITE",
+      "resource": null,
+      "actor": "humano"
+    },
+    {
+      "time": "2026-10-17T12:44:33.6990614Z",
+      "caller": "jorge.avila@cloudexpeditioners.com.pe",
+      "operation": "MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/WRITE",
+      "resource": null,
+      "actor": "humano"
+    },
+    {
+      "time": "2026-10-17T12:44:14.4183652Z",
+      "caller": "jorge.avila@cloudexpeditioners.com.pe",
+      "operation": "MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/WRITE",
+      "resource": null,
+      "actor": "humano"
+    }
+  ],
+  "evidence_md": "| Hora (UTC) | Actor | Quién | Operación | Recurso |\n|---|---|---|---|---|\n| 2026-10-17T13:52:57 | 👤 humano | jorge.avila@cloudexpeditioners.com.pe | `MICROSOFT.OPERATIONALINSIGHTS/WORKSPACES/WRITE` | ? |\n| 2026-10-17T13:52:36 | 👤 humano | jorge.avila@cloudexpeditioners.com.pe | `MICROSOFT.RESOURCES/SUBSCRIPTIONS/RESOURCEGROUPS/WRITE` | ? |\n| 2026-10-17T13:37:28 | 🤖 automatización | 40a8d953-d4dc-48a4-8fdd-fdfbad96dbd6 | `MICROSOFT.OPERATIONALINSIGHTS/WORKSPACES/WRITE` | ? |\n| 2026-10-17T13:37:06 | 🤖 automatización | 40a8d953-d4dc-48a4-8fdd-fdfbad96dbd6 | `MICROSOFT.RESOURCES/SUBSCRIPTIONS/RESOURCEGROUPS/WRITE` | ? |\n| 2026-10-17T13:16:48 | 👤 humano | jorge.avila@cloudexpeditioners.com.pe | `MICROSOFT.OPERATIONALINSIGHTS/WORKSPACES/WRITE` | ? |\n| 2026-10-17T13:16:26 | 👤 humano | jorge.avila@cloudexpeditioners.com.pe | `MICROSOFT.RESOURCES/SUBSCRIPTIONS/RESOURCEGROUPS/WRITE` | ? |\n| 2026-10-17T13:01:19 | 👤 humano | jorge.avila@cloudexpeditioners.com.pe | `MICROSOFT.OPERATIONALINSIGHTS/WORKSPACES/WRITE` | ? |\n| 2026-10-17T13:00:57 | 👤 humano | jorge.avila@cloudexpeditioners.com.pe | `MICROSOFT.RESOURCES/SUBSCRIPTIONS/RESOURCEGROUPS/WRITE` | ? |\n| 2026-10-17T12:44:33 | 👤 humano | jorge.avila@cloudexpeditioners.com.pe | `MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/WRITE` | ? |\n| 2026-10-17T12:44:14 | 👤 humano | jorge.avila@cloudexpeditioners.com.pe | `MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/WRITE` | ? |",
+  "evidence_source": "log_analytics",
+  "fingerprint": "b79d731bbb394dfc8647bc1522fc467e4cb27cb5d30cf196e07cc53142e9809f",
+  "run_id": "39039054635",
+  "run_url": "https://github.com/CloudExpeditioners/modo-hawkeye/actions/runs/39039054635",
+  "issue_url": "https://github.com/CloudExpeditioners/modo-hawkeye/issues/3",
+  "issue_number": "3",
+  "requested_by": "Jorge Luis Avila",
+  "reason": "Investigar si alguien modificó la infraestructura fuera de Terraform (drift)",
+  "identity": "gha-modo-hawkeye-reader (solo lectura)",
+  "started_at": "2026-10-17T14:02:34Z",
+  "finished_at": "2026-10-17T14:03:23Z"
+}
