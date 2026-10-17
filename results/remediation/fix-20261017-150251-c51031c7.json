@@ -1,0 +1,19 @@
+{
+  "kind": "remediation",
+  "id": "fix-20261017-150251-c51031c7",
+  "diagnosis_id": "diag-20261017-141933-dca52f1c",
+  "status": "remediated",
+  "summary": "Corrección aplicada y verificada: Azure vuelve a coincidir con Terraform.",
+  "decision": "apply",
+  "changes_md": "- **azurerm_log_analytics_workspace.hawkeye** → actualizar\n  - `retention_in_days`: en Azure 90 · en Terraform 30\n- **azurerm_resource_group.hawkeye** → actualizar\n  - `tags.cambio_manual`: en Azure \"hotfix-viernes-6pm\" · en Terraform (no existe)",
+  "verified": true,
+  "approved_by": "CloudExpeditioners",
+  "approval_comment": " ",
+  "requested_by": "Jorge Luis Avila",
+  "justification": "La retención de 90 días no está aprobada por FinOps y la etiqueta no está en el código",
+  "identity": "gha-modo-hawkeye (escritura · environment hawkeye-remediation)",
+  "run_id": "39043337641",
+  "run_url": "https://github.com/CloudExpeditioners/modo-hawkeye/actions/runs/39043337641",
+  "started_at": "2026-10-17T15:09:17Z",
+  "finished_at": "2026-10-17T15:10:13Z"
+}
