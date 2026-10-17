@@ -1,0 +1,59 @@
+{
+  "kind": "diagnosis",
+  "id": "diag-prueba-002",
+  "status": "completed",
+  "drift": true,
+  "summary": "Drift detectado: 0 recurso(s) difieren de lo declarado en Terraform.",
+  "change_count": 0,
+  "changes": [],
+  "changes_md": "Sin diferencias: Azure coincide con lo declarado en Terraform.",
+  "evidence": [
+    {
+      "time": "2026-10-17T12:44:33.6990614Z",
+      "caller": "jorge.avila@cloudexpeditioners.com.pe",
+      "operation": "MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/WRITE",
+      "resource": null,
+      "actor": "humano"
+    },
+    {
+      "time": "2026-10-17T12:44:14.4183652Z",
+      "caller": "jorge.avila@cloudexpeditioners.com.pe",
+      "operation": "MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/WRITE",
+      "resource": null,
+      "actor": "humano"
+    },
+    {
+      "time": "2026-10-17T12:44:07.8293138Z",
+      "caller": "jorge.avila@cloudexpeditioners.com.pe",
+      "operation": "MICROSOFT.AUTHORIZATION/ROLEDEFINITIONS/WRITE",
+      "resource": null,
+      "actor": "humano"
+    },
+    {
+      "time": "2026-10-17T11:52:45.8236266Z",
+      "caller": "40a8d953-d4dc-48a4-8fdd-fdfbad96dbd6",
+      "operation": "MICROSOFT.RESOURCES/SUBSCRIPTIONS/RESOURCEGROUPS/WRITE",
+      "resource": null,
+      "actor": "automatizacion"
+    },
+    {
+      "time": "2026-10-17T11:37:26.2652383Z",
+      "caller": "jorge.avila@cloudexpeditioners.com.pe",
+      "operation": "MICROSOFT.RESOURCES/TAGS/WRITE",
+      "resource": null,
+      "actor": "humano"
+    }
+  ],
+  "evidence_md": "| Hora (UTC) | Actor | Quién | Operación | Recurso |\n|---|---|---|---|---|\n| 2026-10-17T12:44:33 | 👤 humano | jorge.avila@cloudexpeditioners.com.pe | `MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/WRITE` | ? |\n| 2026-10-17T12:44:14 | 👤 humano | jorge.avila@cloudexpeditioners.com.pe | `MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/WRITE` | ? |\n| 2026-10-17T12:44:07 | 👤 humano | jorge.avila@cloudexpeditioners.com.pe | `MICROSOFT.AUTHORIZATION/ROLEDEFINITIONS/WRITE` | ? |\n| 2026-10-17T11:52:45 | 🤖 automatización | 40a8d953-d4dc-48a4-8fdd-fdfbad96dbd6 | `MICROSOFT.RESOURCES/SUBSCRIPTIONS/RESOURCEGROUPS/WRITE` | ? |\n| 2026-10-17T11:37:26 | 👤 humano | jorge.avila@cloudexpeditioners.com.pe | `MICROSOFT.RESOURCES/TAGS/WRITE` | ? |",
+  "evidence_source": "log_analytics",
+  "fingerprint": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+  "run_id": "39034516817",
+  "run_url": "https://github.com/CloudExpeditioners/modo-hawkeye/actions/runs/39034516817",
+  "issue_url": "https://github.com/CloudExpeditioners/modo-hawkeye/issues/1",
+  "issue_number": "1",
+  "requested_by": "manual",
+  "reason": "Diagnóstico solicitado manualmente",
+  "identity": "gha-modo-hawkeye-reader (solo lectura)",
+  "started_at": "2026-10-17T12:56:24Z",
+  "finished_at": "2026-10-17T12:57:03Z"
+}
