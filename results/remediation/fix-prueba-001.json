@@ -1,0 +1,14 @@
+{
+  "kind": "remediation",
+  "id": "fix-prueba-001",
+  "diagnosis_id": "diag-prueba-004",
+  "status": "failed",
+  "summary": "La corrección no llegó a ejecutarse. Revisa la ejecución.",
+  "rejected_by": "",
+  "approval_comment": "",
+  "verified": false,
+  "changes_md": "",
+  "run_id": "39036523014",
+  "run_url": "https://github.com/CloudExpeditioners/modo-hawkeye/actions/runs/39036523014",
+  "finished_at": "2026-10-17T13:35:59Z"
+}
